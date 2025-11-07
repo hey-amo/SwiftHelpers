@@ -2,69 +2,78 @@
 //  Bank.swift
 //  SwiftHelpers
 //
-//  Created by Amarjit on 21/10/2025.
+//  Created by Amarjit on 31/10/2025.
 //
 
-import Foundation
 
-public enum BankError: Error, LocalizedError {
-    case notEnoughCoins(required: Int, available: Int)
-    case negativeValue(value: Int)
+// Protocol for anything that can have a balance
+public protocol Bankable {
+    var balance: Int { get set }
+    func updateBalance(_ amount: Int)
+}
+
+// Protocol defining bank operations
+public protocol Banking {
+    func credit(_ amount: Int, to account: Bankable) throws
+    func debit(_ amount: Int, from account: Bankable) throws
+    func getBalance(for account: Bankable) -> Int
+}
+
+// Concrete implementation
+final public class Bank: Banking {
+    public func credit(_ amount: Int, to account: Bankable) throws {
+        do {
+            let _ = try canCredit(amount)
+        } catch let err {
+            throw err
+        }
         
-    public var errorDescription: String {
-           switch self {
-           case .negativeValue(let value):
-               return "Numeric error: \(value) cannot be negative."
-           case .notEnoughCoins(let required, let available):
-               return "Not enough coins: required $\(required), available $\(available)."
-           }
-       }
-}
-
-public protocol BankTransaction {
-    var balance: Int { get }
-    mutating func credit(_ amount: Int)
-    mutating func debit(_ amount: Int)
-}
-
-public struct Bank: BankTransaction {
-    private var _balance: Int
-    public var balance: Int {
-        get { return self._balance }
+        account.updateBalance(amount)
     }
     
-    init(_balance: Int) {
-        self._balance = _balance
-    }
-    
-    public mutating func credit(_ amount: Int) {
-        guard canCredit(amount) else {
-            return
+    public func debit(_ amount: Int, from account: Bankable) throws {
+        do {
+            let _ = try canDebit(amount, from: account)
+        } catch let err {
+            throw err
         }
-        self._balance += amount
+        
+        account.updateBalance(-amount)
     }
     
-    public mutating func debit(_ amount: Int) {
-        guard canDebit(amount) else {
-            return
-        }
-        self._balance -= amount
+    public func getBalance(for account: Bankable) -> Int {
+        return account.balance
     }
-}
-
-private extension Bank {
-    private func canCredit(_ amount: Int) -> Bool {
-        guard amount > 0 else { return false }
+    
+    // MARK: Validate Funds, Credit and Debit
+    
+    public func hasEnoughFunds(for amount: Int, from account: Bankable) throws -> Bool {
+        guard amount > 0 else {
+            throw IntegerError.isNegativeValue(amount)
+        }
+        guard account.balance >= amount else {
+            throw IntegerError.insufficentFunds
+        }
         return true
     }
     
-    private func canDebit(_ amount: Int) -> Bool {
-        guard amount > 0 else { return false }
-        guard balance >= amount else { return false }
+    public func canCredit(_ amount: Int) throws -> Bool {
+        guard amount > 0 else {
+            throw IntegerError.isNegativeValue(amount)
+        }
+        return true
+    }
+    
+    public func canDebit(_ amount: Int, from account: Bankable) throws -> Bool {
+        guard amount > 0 else {
+            throw IntegerError.isNegativeValue(amount)
+        }
         
-        // Check for a negative balance after subtraction
-        let sum = (balance - amount)
-        guard sum >= 0 else { return false }
+        let sum = (account.balance - amount)
+        
+        guard sum >= 0 else {
+            throw IntegerError.insufficentFunds
+        }
         
         return true
     }
